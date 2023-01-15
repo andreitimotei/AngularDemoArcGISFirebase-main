@@ -22,7 +22,14 @@ import { setDefaultOptions, loadModules } from 'esri-loader';
 import { Subscription } from "rxjs";
 import { FirebaseService, ITestItem } from "src/app/services/database/firebase";
 import { FirebaseMockService } from "src/app/services/database/firebase-mock";
-import esri = __esri; // Esri TypeScript Types
+import esri = __esri;
+import {ReviewsService} from "../../services/database/review.service";
+import {AuthenticationService} from "../../services/database/authentication.service"; // Esri TypeScript Types
+
+const addReviewAction = {
+  title: 'Add Review',
+  id: 'add-review'
+}
 
 @Component({
   selector: "app-esri-map",
@@ -69,9 +76,26 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   subscriptionList: Subscription;
   subscriptionObj: Subscription;
 
+  allReviews: any[];
+
+  showReviewField: boolean = false;
+
+  feedback: string;
+  rating: number;
+
+  noOfReviews: number;
+
+  errorMessage: string;
+
+  loggedIn: boolean = true;
+
+  logInSubscription: Subscription = new Subscription();
+
   constructor(
      //private fbs: FirebaseService
-    private fbs: FirebaseMockService
+    private fbs: FirebaseMockService,
+    private reviewsService: ReviewsService,
+    private authenticationService: AuthenticationService
   ) { }
 
   async initializeMap() {
@@ -175,22 +199,27 @@ export class EsriMapComponent implements OnInit, OnDestroy {
        const view = this.view
        this.view.on("double-click", function(event){
 
-             if (view.graphics.length === 0) {
+             if (view.graphics.filter(graphic => graphic.attributes.type === 'routing').length === 0) {
                addGraphic("origin", event.mapPoint);
-             } else if (view.graphics.length === 1) {
+               console.log("origin point");
+             } else if (view.graphics.filter(graphic => graphic.attributes.type === 'routing').length === 1) {
                addGraphic("destination", event.mapPoint);
+               console.log("destination point");
 
                getRoute(); // Call the route service
-
              } else {
-               view.graphics.removeAll();
-               addGraphic("origin",event.mapPoint);
+               console.log("remove route and add new origin");
+               view.graphics = view.graphics.filter(graphic => graphic.attributes.type !== 'routing');
+               addGraphic("origin", event.mapPoint);
              }
 
            });
 
            function addGraphic(type, point) {
              const graphic = new Graphic({
+               attributes: {
+                 type: 'routing'
+               },
                symbol: {
                  type: "simple-marker",
                  color: (type === "origin") ? "white" : "black",
@@ -199,12 +228,13 @@ export class EsriMapComponent implements OnInit, OnDestroy {
                geometry: point
              });
              view.graphics.add(graphic);
+             console.log("added point");
            }
 
            function getRoute() {
              const routeParams = new RouteParameters({
                stops: new FeatureSet({
-                 features: view.graphics.toArray()
+                 features: view.graphics.filter(graphic => graphic.attributes.type === 'routing').toArray()
                }),
 
                returnDirections: true
@@ -227,6 +257,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
                   const directions = document.createElement("ol");
                   directions.classList.add("esri-widget,esri-widget--panel,esri-directions__scroller");
                   directions.style.marginTop = "0";
+                  directions.style.background = 'white';
                   directions.style.padding = "15px 15px 15px 30px";
                   const features = data.routeResults[0].directions.features;
 
@@ -258,7 +289,6 @@ export class EsriMapComponent implements OnInit, OnDestroy {
 
       await this.view.when(); // wait for map to load
       console.log("ArcGIS map loaded");
-      this.addRouter();
       this.view.popup.actions[10] = [];
       this.view.when(()=>{
         this.findPlaces(this.view.center);
@@ -314,6 +344,33 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     });
   }
 
+  getCoordinatesString(x, y) {
+    return x.toString() + y.toString();
+  }
+
+  getReviewsForStore(idString) {
+    if (this.allReviews.filter(review => review.storeId === idString).length > 0) {
+      let displayString = 'Reviews: <br><br>';
+      this.allReviews
+        .filter(review => review.storeId === idString)
+        .forEach(review => {
+          displayString += `Rating: ${review.rating} <br> ${review.feedback} <br><br><br>`
+        })
+      return displayString;
+    } else {
+      return 'This store has no reviews';
+    }
+  }
+
+  addReview() {
+    console.log('add review');
+    if (this.loggedIn) {
+      this.showReviewField = true;
+    } else {
+      this.errorMessage = "You can only add reviews if you have an account.\nPlease register or log in";
+    }
+  }
+
   showResults(results) {
     this.view.popup.close();
     this.view.graphics.removeAll();
@@ -333,7 +390,9 @@ export class EsriMapComponent implements OnInit, OnDestroy {
           },
           popupTemplate: {
             title: "{PlaceName}",
-            content: "{Place_addr}" + "<br><br>" + result.location.x.toFixed(5) + "," + result.location.y.toFixed(5)
+            content: "{Place_addr}" + "<br><br>" + result.location.x.toFixed(5) + "," + result.location.y.toFixed(5) + "<br><br>"
+                    + this.getReviewsForStore(this.getCoordinatesString(result.location.x, result.location.y)),
+            actions: [addReviewAction]
           }
         }));
     });
@@ -343,6 +402,12 @@ export class EsriMapComponent implements OnInit, OnDestroy {
         features: [g],
         location: g.geometry
       });
+      this.view.popup.on("trigger-action", (event) => {
+        if (event.action.id === 'add-review') {
+          console.log(event);
+          this.addReview();
+        }
+      })
     }
   }
 
@@ -360,83 +425,6 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     });
   }
 
-  addRouter() {
-    const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
-
-    this.view.on("double-click", (event) => {
-      console.log("point clicked: ", event.mapPoint.latitude, event.mapPoint.longitude);
-      if (this.view.graphics.length === 0) {
-        addGraphic("origin", event.mapPoint);
-      } else if (this.view.graphics.length === 1) {
-        addGraphic("destination", event.mapPoint);
-        getRoute(); // Call the route service
-      } else {
-        this.view.graphics.removeAll();
-        addGraphic("origin", event.mapPoint);
-      }
-    });
-
-    var addGraphic = (type: any, point: any) => {
-      const graphic = new this._Graphic({
-        symbol: {
-          type: "simple-marker",
-          color: (type === "origin") ? "white" : "black",
-          size: "8px"
-        } as any,
-        geometry: point
-      });
-      this.view.graphics.add(graphic);
-    }
-
-    var getRoute = () => {
-      const routeParams = new this._RouteParameters({
-        stops: new this._FeatureSet({
-          features: this.view.graphics.toArray()
-        }),
-        returnDirections: true
-      });
-
-      this._Route.solve(routeUrl, routeParams).then((data: any) => {
-        for (let result of data.routeResults) {
-          result.route.symbol = {
-            type: "simple-line",
-            color: [5, 150, 255],
-            width: 3
-          };
-          this.view.graphics.add(result.route);
-        }
-
-        // Display directions
-        if (data.routeResults.length > 0) {
-          const directions: any = document.createElement("ol");
-          directions.classList = "esri-widget esri-widget--panel esri-directions__scroller";
-          directions.style.marginTop = "0";
-          directions.style.padding = "15px 15px 15px 30px";
-          const features = data.routeResults[0].directions.features;
-
-          let sum = 0;
-          // Show each direction
-          features.forEach((result: any, i: any) => {
-            sum += parseFloat(result.attributes.length);
-            const direction = document.createElement("li");
-            direction.innerHTML = result.attributes.text + " (" + result.attributes.length + " miles)";
-            directions.appendChild(direction);
-          });
-
-          sum = sum * 1.609344;
-          console.log('dist (km) = ', sum);
-
-          this.view.ui.empty("top-right");
-          this.view.ui.add(directions, "top-right");
-
-        }
-
-      }).catch((error: any) => {
-        console.log(error);
-      });
-    }
-  }
-
   disconnectFirebase() {
     if (this.subscriptionList != null) {
       this.subscriptionList.unsubscribe();
@@ -446,9 +434,25 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnInit() {
+  async getAllReviews() {
+    this.allReviews = await this.reviewsService.getReviews();
+    this.noOfReviews = this.allReviews.length;
+    console.log(this.allReviews);
+  }
+
+  async ngOnInit() {
     // Initialize MapView and return an instance of MapView
     console.log("initializing map");
+
+    this.logInSubscription = this.authenticationService.logInObservable$.subscribe(
+      response => {
+        this.loggedIn = !!response;
+        console.log('log in from esri map', this.loggedIn);
+      }
+    )
+
+    await this.getAllReviews();
+
     this.initializeMap().then(() => {
       // The map has been initialized
       console.log("mapView ready: ", this.view.ready);
@@ -464,5 +468,23 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     }
     this.stopTimer();
     this.disconnectFirebase();
+  }
+
+
+  async saveReview() {
+    if (!this.rating || this.rating > 10 || this.rating < 1) {
+      this.errorMessage = 'Your rating must be a number between 1 and 10';
+      return;
+    }
+    let longitude = typeof this.view.popup.selectedFeature.geometry.get('longitude') === 'number' ? this.view.popup.selectedFeature.geometry.get('longitude') : null;
+    let latitude = typeof this.view.popup.selectedFeature.geometry.get('latitude') === 'number' ? this.view.popup.selectedFeature.geometry.get('latitude') : null;
+    let storeId = this.getCoordinatesString(longitude, latitude);
+    this.reviewsService.addNewReview(this.noOfReviews.toString(), storeId, this.rating, this.feedback || '');
+    this.rating = null;
+    this.feedback = '';
+    this.errorMessage = null;
+    this.showReviewField = false;
+    await this.getAllReviews();
+    this.initializeMap();
   }
 }

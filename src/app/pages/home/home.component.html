@@ -21,4 +21,7 @@
     </button>
     <button (click)="signUp()" class="btn btn-link">Register</button>
   </div>
+  <div>
+    <span *ngIf="logInMessage !== null || logInMessage !== ''">{{logInMessage}}</span>
+  </div>
 </form>

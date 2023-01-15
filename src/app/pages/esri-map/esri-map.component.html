@@ -1,22 +1,16 @@
 <!-- Here's the DIV that we inject the map into -->
 
-<div fxLayout="row">
-    <div fxFlex="20%" fxLayout="column">
-        <mat-list>
-            <mat-list-item>
-                <span class="label">Firebase</span>
-            </mat-list-item>
-            <mat-divider></mat-divider>
-            <mat-list-item>
-                <button mat-button mat-button color="primary" class="full-w">Connect</button>
-            </mat-list-item>
-            <mat-divider></mat-divider>
-            <mat-list-item>
-                <button mat-button mat-button color="primary" class="full-w">Add item</button>
-            </mat-list-item>
-        </mat-list>
-    </div>
+<div class="flex-column">
     <div fxFlex="80%">
         <div #mapViewNode></div>
+    </div>
+    <div *ngIf="showReviewField && loggedIn" class="flex-row">
+      <input [(ngModel)]="feedback" placeholder="Describe your experience" style="margin-right: 5px; width: 200px"><br>
+      <input [(ngModel)]="rating" type="number" placeholder="Give us a rating from 1-10" style="margin-right: 5px; width: 200px"><br>
+      <button (click)="saveReview()">Save review</button><br>
+      <span *ngIf="errorMessage">{{errorMessage}}</span><br>
+    </div>
+    <div *ngIf="!loggedIn">
+      <span>{{errorMessage}}</span>
     </div>
 </div>

@@ -22,6 +22,8 @@ import { FlexLayoutModule } from '@angular/flex-layout';
 import {HomeComponent} from "./pages/home/home.component";
 import {FormsModule} from "@angular/forms";
 
+import { AngularFirestoreModule } from "@angular/fire/compat/firestore";
+
 
 @NgModule({
   declarations: [AppComponent, EsriMapComponent, HomeComponent],
@@ -36,7 +38,8 @@ import {FormsModule} from "@angular/forms";
     FlexLayoutModule,
     AngularFireModule.initializeApp(environment.firebase, 'AngularDemoArcGIS'),
     AngularFireDatabaseModule,
-    FormsModule
+    AngularFirestoreModule,
+    FormsModule,
   ],
   providers: [
     FirebaseService,
