@@ -24,12 +24,21 @@ import { FirebaseService, ITestItem } from "src/app/services/database/firebase";
 import { FirebaseMockService } from "src/app/services/database/firebase-mock";
 import esri = __esri;
 import {ReviewsService} from "../../services/database/review.service";
-import {AuthenticationService} from "../../services/database/authentication.service"; // Esri TypeScript Types
+import {AuthenticationService} from "../../services/database/authentication.service";
+import {Point} from "./point"; // Esri TypeScript Types
 
 const addReviewAction = {
   title: 'Add Review',
   id: 'add-review'
 }
+
+const options = {
+  enableHighAccuracy: true,
+  timeout: 5000,
+  maximumAge: 0
+};
+
+
 
 @Component({
   selector: "app-esri-map",
@@ -91,12 +100,19 @@ export class EsriMapComponent implements OnInit, OnDestroy {
 
   logInSubscription: Subscription = new Subscription();
 
+  latitude: number;
+  longitude: number;
+
   constructor(
      //private fbs: FirebaseService
     private fbs: FirebaseMockService,
     private reviewsService: ReviewsService,
     private authenticationService: AuthenticationService
   ) { }
+
+  error(err) {
+    console.warn(`ERROR(${err.code}): ${err.message}`);
+  }
 
   async initializeMap() {
     try {
@@ -197,6 +213,8 @@ export class EsriMapComponent implements OnInit, OnDestroy {
        const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
 
        const view = this.view
+       this.view.center.latitude = this.latitude;
+       this.view.center.longitude = this.longitude;
        this.view.on("double-click", function(event){
 
              if (view.graphics.filter(graphic => graphic.attributes.type === 'routing').length === 0) {
@@ -364,9 +382,8 @@ export class EsriMapComponent implements OnInit, OnDestroy {
 
   addReview() {
     console.log('add review');
-    if (this.loggedIn) {
-      this.showReviewField = true;
-    } else {
+    this.showReviewField = true;
+    if (!this.loggedIn) {
       this.errorMessage = "You can only add reviews if you have an account.\nPlease register or log in";
     }
   }
@@ -444,16 +461,15 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     // Initialize MapView and return an instance of MapView
     console.log("initializing map");
 
-    this.logInSubscription = this.authenticationService.logInObservable$.subscribe(
-      response => {
-        this.loggedIn = !!response;
-        console.log('log in from esri map', this.loggedIn);
-      }
-    )
+    navigator.geolocation.getCurrentPosition(pos => this.success(pos));
+
+    this.authenticationService.authStatus.subscribe(response => {
+      this.loggedIn = !!response;
+    })
 
     await this.getAllReviews();
 
-    this.initializeMap().then(() => {
+    await this.initializeMap().then(() => {
       // The map has been initialized
       console.log("mapView ready: ", this.view.ready);
       this.loaded = this.view.ready;
@@ -486,5 +502,22 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     this.showReviewField = false;
     await this.getAllReviews();
     this.initializeMap();
+  }
+
+  cancel() {
+    this.showReviewField = false;
+  }
+
+  success(pos) {
+    const crd = pos.coords;
+
+    console.log('Your current position is:');
+    console.log(`Latitude : ${crd.latitude}`);
+    console.log(`Longitude: ${crd.longitude}`);
+    console.log(`More or less ${crd.accuracy} meters.`);
+
+    this.latitude = crd.latitude;
+    this.longitude = crd.longitude;
+    // this.errorMessage = 'eroare';
   }
 }

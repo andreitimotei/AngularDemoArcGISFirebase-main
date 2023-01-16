@@ -8,9 +8,11 @@
       <input [(ngModel)]="feedback" placeholder="Describe your experience" style="margin-right: 5px; width: 200px"><br>
       <input [(ngModel)]="rating" type="number" placeholder="Give us a rating from 1-10" style="margin-right: 5px; width: 200px"><br>
       <button (click)="saveReview()">Save review</button><br>
-      <span *ngIf="errorMessage">{{errorMessage}}</span><br>
-    </div>
-    <div *ngIf="!loggedIn">
+      <button (click)="cancel()">Cancel</button><br>
       <span>{{errorMessage}}</span>
+    </div>
+    <div *ngIf="showReviewField && !loggedIn">
+      <span>{{errorMessage}}</span>
+      <button (click)="cancel()">Cancel</button><br>
     </div>
 </div>

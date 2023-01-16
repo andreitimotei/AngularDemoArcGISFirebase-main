@@ -20,6 +20,8 @@
       Login
     </button>
     <button (click)="signUp()" class="btn btn-link">Register</button>
+
+    <button (click)="signOut()" class="btn btn-link">Sign Out</button>
   </div>
   <div>
     <span *ngIf="logInMessage !== null || logInMessage !== ''">{{logInMessage}}</span>

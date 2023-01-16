@@ -26,6 +26,13 @@ export class HomeComponent implements OnInit{
   password: string;
 
   ngOnInit() {
+    this.authenticationService.authStatus.subscribe(response => {
+      if (response) {
+        this.successMessage();
+      } else {
+        this.logInMessage = 'You are not logged in'
+      }
+    })
     this.logInSubscription = this.authenticationService.getEmittedValue().subscribe(
       response => {
         if (response) {
